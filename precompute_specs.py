@@ -99,6 +99,11 @@ def crop_audio(wav, start, duration_):
     segment = segment[:, :duration_]
     return segment
 
+def extract_relative_audio_path(audio_path):
+  path_no_ext, _ = os.path.splitext(audio_path)
+  parts = path_no_ext.split(os.sep)
+  return os.path.join(parts[-2], parts[-1])
+
 ds_df = pd.read_csv(train_csv)
 taxonomy_df = pd.read_csv(taxonomy_csv)
 
@@ -115,18 +120,21 @@ db_transform = torchaudio.transforms.AmplitudeToDB(stype='power', top_db=top_db)
 os.makedirs(output_dir, exist_ok=True)
 os.makedirs(os.path.join(output_dir, 'spectrograms'), exist_ok=True)
 output = []
+file_counts = []
 
 
 # Loop through each row in the DataFrame
 for index, row in tqdm(ds_df.iterrows(), total=len(ds_df)):
     # Get the audio file path and label
     audio_path = os.path.join('data/2025/train_audio', row['filename'])
+    relative_path = extract_relative_audio_path(audio_path)
     labels = row['primary_label'].split(' ')
     
     # Read the audio file
     wav = read_audio(audio_path)
     
     start = 0
+    count = 0
     while start < wav.size(1):
         # Crop the audio
         segment = crop_audio(wav, start, train_duration)
@@ -143,7 +151,8 @@ for index, row in tqdm(ds_df.iterrows(), total=len(ds_df)):
         mel_spectrogram = mel_spectrogram.expand(3, -1, -1)
         
         # Save the spectrogram
-        spectrogram_path = os.path.join(output_dir, 'spectrograms', f"{index}_{start}.pt")
+        spectrogram_path = os.path.join(output_dir, 'spectrograms', f"{relative_path}/{count}.pt")
+        os.makedirs(os.path.dirname(spectrogram_path), exist_ok=True)
         torch.save(mel_spectrogram, spectrogram_path)
         
         # update the labels
@@ -156,7 +165,20 @@ for index, row in tqdm(ds_df.iterrows(), total=len(ds_df)):
         }
         output.append(row)
         start += step_duration
+        count+=1
+    
+    # add to count
+    count_path = os.path.join(output_dir, 'spectrograms', f"{relative_path}")
+    count_row = {
+        'file_path': count_path,
+        'count': count,
+        'label': label
+    }
+    file_counts.append(count_row)
 
 # Save the file labels and index 2 labels to a CSV file
 labels_df = pd.DataFrame(output)
 labels_df.to_csv(os.path.join(output_dir, 'labels.csv'), index=False)
+
+counts_df = pd.DataFrame(file_counts)
+counts_df.to_csv(os.path.join(output_dir, 'counts.csv'), index=False)
