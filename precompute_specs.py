@@ -30,6 +30,7 @@ step_duration = int(train_duration - overlap_duration)
 
 # Paths
 train_csv = 'data/2025/train.csv'
+train_cleaned_csv = 'data/2025/train_cleaned.csv'
 taxonomy_csv = 'data/2025/taxonomy.csv'
 output_dir = 'data/precomputed_spectrograms'
 
@@ -107,6 +108,10 @@ def extract_relative_audio_path(audio_path):
 ds_df = pd.read_csv(train_csv)
 taxonomy_df = pd.read_csv(taxonomy_csv)
 
+# Read the cleaned training file and get set of filenames
+cleaned_df = pd.read_csv(train_cleaned_csv)
+cleaned_filenames = set(cleaned_df['filename'].values)
+
 # Map species id to label
 taxonomy = sorted(set(taxonomy_df['primary_label'].values))
 taxonomy = {species: i for i, species in enumerate(taxonomy)}
@@ -115,6 +120,8 @@ num_classes = len(taxonomy)
 # Create mel spectrogram transformation objects
 mel_transform = torchaudio.transforms.MelSpectrogram(**mel_spec_params)
 db_transform = torchaudio.transforms.AmplitudeToDB(stype='power', top_db=top_db)
+output_cleaned = []
+file_counts_cleaned = []
 
 # Output
 os.makedirs(output_dir, exist_ok=True)
@@ -132,6 +139,9 @@ for index, row in tqdm(ds_df.iterrows(), total=len(ds_df)):
     
     # Read the audio file
     wav = read_audio(audio_path)
+
+    # check if file is in cleaned
+    in_cleaned = row['filename'] in cleaned_filenames
     
     start = 0
     count = 0
@@ -164,6 +174,9 @@ for index, row in tqdm(ds_df.iterrows(), total=len(ds_df)):
             'file_num': index
         }
         output.append(row)
+        if in_cleaned:
+          output_cleaned.append(row)
+
         start += step_duration
         count+=1
     
@@ -172,9 +185,12 @@ for index, row in tqdm(ds_df.iterrows(), total=len(ds_df)):
     count_row = {
         'file_path': count_path,
         'count': count,
-        'label': label
+        'label': label,
+        'file_num': index
     }
     file_counts.append(count_row)
+    if in_cleaned:
+        file_counts_cleaned.append(count_row)
 
 # Save the file labels and index 2 labels to a CSV file
 labels_df = pd.DataFrame(output)
@@ -182,3 +198,10 @@ labels_df.to_csv(os.path.join(output_dir, 'labels.csv'), index=False)
 
 counts_df = pd.DataFrame(file_counts)
 counts_df.to_csv(os.path.join(output_dir, 'counts.csv'), index=False)
+
+# Save the cleaned label and count files
+labels_cleaned_df = pd.DataFrame(output_cleaned)
+labels_cleaned_df.to_csv(os.path.join(output_dir, 'labels_cleaned.csv'), index=False)
+
+counts_cleaned_df = pd.DataFrame(file_counts_cleaned)
+counts_cleaned_df.to_csv(os.path.join(output_dir, 'counts_cleaned.csv'), index=False)
