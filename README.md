@@ -1,7 +1,9 @@
-**Overview**
+## Overview
+
 Our training code for the birdCLEF 2025 challenge. Our inference code can be found [here](https://www.kaggle.com/code/hanchenbai/birdclef2025-inference-notebook). We achieved a final score of .804 ROC-AUC, placing 905th in the competition. Our approach used mel spectrograms (a visual representation for sounds) combned with CNNs.
 
-**File Desciptions**
+## File Descriptions
+
 Final report - PDF containing our final report for CSE493S
 
 Clean Data - Removes loudest 20% of data and drops duplicates as suggested in BirdCLEF2024 winning solution. 
